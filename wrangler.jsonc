@@ -1,5 +1,4 @@
-{
-  "$schema": "node_modules/wrangler/config-schema.json",
+PASTE-YOUR-D1-DATABASE-ID-HERE "$schema": "node_modules/wrangler/config-schema.json",
   // This MUST match the name of your existing "ak" Worker so this deploy
   // updates that same Worker (and keeps its adityaworks.in route) instead
   // of creating a new one. If "ak" currently does something else you still
@@ -19,8 +18,8 @@
   "d1_databases": [
     {
       "binding": "DB",
-      "database_name": "calcined-lime",
-      "database_id": "PASTE-YOUR-D1-DATABASE-ID-HERE"
+      "database_name": "calcined-lime1",
+      "database_id": "d60a0573-e084-4e75-bd05-70f629a57a6dABASE-ID-HERE"
     }
   ]
 }
