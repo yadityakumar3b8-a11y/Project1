@@ -5,7 +5,7 @@ project1
   // need, rename this to a new Worker name and add its own route instead.
   "name":"project0",
   "main": "worker.js",
-  "cnametibility_date": "2025-01-01",
+  "compatibility_date": "2025-01-01",
 
   // Serves everything in /public (your app) for any request that isn't /api/*
   "assets": {
