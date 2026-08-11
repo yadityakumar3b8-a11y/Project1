@@ -19,7 +19,7 @@ Worker
     {
       "binding": "DB",
       "database_name": "calcined-lime1",
-      "database_id": "d60a0573-e084-4e75-bd05-70f629a57a6dABASE-ID-HERE"
+      "database_id": "d60a0573-e084-4e75-bd05-70f629a57a6d"
     }
   ]
 }
