@@ -1,20 +1,13 @@
-project1
-  // This MUST match the name of your existing "ak" Worker so this deploy
-  // updates that same Worker (and keeps its adityaworks.in route) instead
-  // of creating a new one. If "ak" currently does something else you still
-  // need, rename this to a new Worker name and add its own route instead.
-  "name":"project0",
-  "main": "worker.js",
+{
+  "name": "project0",
+  "main": "src/worker.js",
   "compatibility_date": "2025-01-01",
 
-  // Serves everything in /public (your app) for any request that isn't /api/*
   "assets": {
     "directory": "./public",
     "binding": "ASSETS"
   },
 
-  // Paste the database_id you get after creating the D1 database in the
-  // Cloudflare dashboard (Workers & Pages -> D1 -> Create database).
   "d1_databases": [
     {
       "binding": "DB",
