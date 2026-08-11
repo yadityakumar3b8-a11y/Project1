@@ -1,9 +1,9 @@
-Worker
+project1
   // This MUST match the name of your existing "ak" Worker so this deploy
   // updates that same Worker (and keeps its adityaworks.in route) instead
   // of creating a new one. If "ak" currently does something else you still
   // need, rename this to a new Worker name and add its own route instead.
-  "name":"project1",
+  "name":"project0",
   "main": "worker.js",
   "cnametibility_date": "2025-01-01",
 
