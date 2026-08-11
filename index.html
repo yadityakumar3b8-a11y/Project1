@@ -1,0 +1,1463 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<title>Calcined Lime — Fleet Tracker</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@600;700&family=IBM+Plex+Mono:wght@400;500;600&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+<style>
+  :root{
+    --bg:#EAEDF0; --panel:#FFFFFF; --ink:#1C2226; --ink-soft:#5B6570;
+    --line:#D6DADF; --line-soft:#E9ECEE;
+    --received:#2E7D46; --received-bg:#E4F2E8;
+    --transit:#B8631F; --transit-bg:#FBEBDD;
+    --loading:#3B6E91; --loading-bg:#E2EDF3;
+    --pending:#B23B3B; --pending-bg:#F8E4E4;
+    --lcd-bg:#0E2119; --lcd-text:#6FFFB0; --lcd-dim:#4d8a6e;
+    --fs:13px;
+  }
+  *{box-sizing:border-box; -webkit-tap-highlight-color:transparent;}
+  html,body{margin:0;padding:0;}
+  body{
+    background:var(--bg); color:var(--ink); font-family:'Inter',system-ui,sans-serif;
+    -webkit-font-smoothing:antialiased; padding-bottom:56px; font-size:var(--fs);
+  }
+  .mono{font-family:'IBM Plex Mono',monospace;}
+  button{font-family:inherit;}
+  input,select{font-size:inherit;}
+
+  /* ---------- Header ---------- */
+  header.top{ background:var(--ink); color:#F2F4F5; padding:7px 8px 5px; position:sticky; top:0; z-index:40; }
+  .top-row{display:flex; align-items:center; justify-content:space-between; gap:6px;}
+  .brand{display:flex; flex-direction:column; line-height:1.15; min-width:0;}
+  .brand h1{margin:0; font-family:'Space Grotesk',sans-serif; font-size:16px; font-weight:700; white-space:nowrap;}
+  .brand .sub{font-size:10px; color:#93A2A9; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;}
+  .icon-btn{
+    width:30px; height:30px; border-radius:7px; border:1px solid rgba(255,255,255,0.14);
+    background:rgba(255,255,255,0.06); color:#F2F4F5; font-size:14px; cursor:pointer;
+    display:flex; align-items:center; justify-content:center; flex:none; padding:0;
+  }
+  .icon-btn.active{ background:#F2F4F5; color:var(--ink); }
+  .header-btns{ display:flex; gap:5px; flex:none; }
+
+  .pending-row{ display:none; align-items:center; gap:6px; margin-top:5px;
+    background:rgba(255,255,255,0.06); border:1px solid rgba(255,255,255,0.12); border-radius:7px; padding:5px 8px; }
+  .pending-row.open{display:flex;}
+  .pending-row label{font-size:9.5px; color:#93A2A9; text-transform:uppercase; letter-spacing:.06em; font-family:'IBM Plex Mono',monospace; flex:none;}
+  .pending-row input{ background:transparent; border:none; color:#F2F4F5; font-family:'IBM Plex Mono',monospace; font-size:13px; font-weight:600; flex:1; min-width:0; outline:none; }
+
+  .lcd-strip{ display:flex; gap:3px; margin-top:5px; }
+  .lcd-panel{ background:var(--lcd-bg); border-radius:5px; padding:3px 2px 4px; flex:1; min-width:0; text-align:center; border:1px solid #133023; }
+  .lcd-label{ font-family:'IBM Plex Mono',monospace; font-size:6.5px; letter-spacing:.02em; color:var(--lcd-dim); text-transform:uppercase; white-space:nowrap;}
+  .lcd-value{ font-family:'IBM Plex Mono',monospace; font-size:10.5px; font-weight:600; color:var(--lcd-text);
+    text-shadow:0 0 6px rgba(111,255,176,0.4); font-variant-numeric:tabular-nums; white-space:nowrap; }
+  .lcd-panel.pending .lcd-value{ color:#9FD3FF; text-shadow:0 0 6px rgba(159,211,255,0.4); }
+  .lcd-panel.pending .lcd-label{ color:#3f6c85; }
+  .lcd-panel.balance .lcd-value{ color:#FFD37A; text-shadow:0 0 6px rgba(255,211,122,0.4); }
+  .lcd-panel.balance .lcd-label{ color:#8a743f; }
+
+  /* ---------- Toolbar ---------- */
+  .toolbar{ display:flex; align-items:center; gap:5px; padding:6px 8px; background:var(--panel);
+    border-bottom:1px solid var(--line); position:sticky; top:0; z-index:30; overflow-x:auto; }
+  .toolbar .tbtn{ width:30px; height:30px; border-radius:8px; border:1px solid var(--line); background:#fff;
+    font-size:14px; display:flex; align-items:center; justify-content:center; cursor:pointer; flex:none; padding:0; color:var(--ink); }
+  .toolbar .tbtn.active{ background:var(--ink); color:#fff; border-color:var(--ink); }
+  .toolbar .tbtn.add{ background:var(--ink); color:#fff; border-color:var(--ink); font-size:17px; font-weight:700; }
+  .toolbar .spacer{flex:1;}
+  .menu-wrap{position:relative;}
+  .menu{ position:fixed; background:var(--panel); border:1px solid var(--line);
+    border-radius:8px; box-shadow:0 6px 20px rgba(0,0,0,0.25); min-width:190px; z-index:500; overflow:hidden; display:none; }
+  .menu.open{display:block;}
+  .menu button{ width:100%; text-align:left; background:none; border:none; padding:9px 12px; font-size:13px;
+    cursor:pointer; color:var(--ink); display:flex; align-items:center; gap:8px; }
+  .menu button:hover{background:var(--line-soft);}
+
+  .panel{ display:none; padding:8px; background:var(--panel); border-bottom:1px solid var(--line); }
+  .panel.open{ display:block; }
+  .panel-row{ display:flex; gap:6px; flex-wrap:wrap; align-items:center; }
+  .panel input[type="text"], .panel input[type="date"]{ background:#F5F6F7; border:1px solid var(--line); border-radius:7px; padding:6px 8px; font-size:12.5px; color:var(--ink); min-width:0; flex:1; }
+  .chip-group{ display:flex; gap:5px; flex-wrap:wrap; }
+  .chip{ border:1px solid var(--line); background:#fff; border-radius:20px; padding:5px 9px; font-size:11.5px; cursor:pointer; display:flex; align-items:center; gap:4px; color:var(--ink-soft); flex:none; }
+  .chip.active{ background:var(--ink); color:#fff; border-color:var(--ink); }
+  .date-mini{ font-size:11px; color:var(--ink-soft); display:flex; align-items:center; gap:4px; }
+
+  .settings-grid{ display:flex; flex-direction:column; gap:10px; }
+  .settings-item{ display:flex; align-items:center; justify-content:space-between; gap:8px; }
+  .settings-item .lbl{ font-size:12px; color:var(--ink-soft); flex:none; }
+  .stepper{ display:flex; align-items:center; gap:6px; }
+  .stepper button{ width:28px; height:28px; border-radius:6px; border:1px solid var(--line); background:#fff; font-size:14px; cursor:pointer; }
+  .stepper .val{ font-family:'IBM Plex Mono',monospace; font-size:12px; min-width:38px; text-align:center; }
+  .col-toggles{ display:flex; flex-direction:column; gap:6px; }
+  .col-toggle{ display:flex; align-items:center; gap:7px; font-size:12.5px; color:var(--ink); }
+
+  /* ---------- Bulk select bar ---------- */
+  .bulk-bar{ display:none; align-items:center; gap:8px; padding:7px 10px; background:#1C2226; color:#fff; position:sticky; top:0; z-index:32; }
+  .bulk-bar.open{ display:flex; }
+  .bulk-bar .cnt{ font-size:12.5px; flex:1; }
+  .bulk-bar button{ border:none; border-radius:7px; padding:6px 10px; font-size:12px; cursor:pointer; font-weight:600; }
+  .bulk-bar .del{ background:var(--pending); color:#fff; }
+  .bulk-bar .cancel{ background:rgba(255,255,255,0.15); color:#fff; }
+
+  /* ---------- Tab panes ---------- */
+  .tab-viewport{ overflow:hidden; }
+  .tab-track{ display:flex; width:300%; transition:transform .2s ease; }
+  .tab-pane{ width:33.3333%; flex:none; }
+  .pane-inner{ padding:5px; }
+  .pane-title{ font-family:'Space Grotesk',sans-serif; font-size:13px; font-weight:700; padding:4px 4px 5px; display:flex; align-items:center; justify-content:space-between; gap:8px; }
+  .pane-title .hint{ font-size:10.5px; color:var(--ink-soft); font-weight:400; }
+  .stat-inline{ display:flex; gap:8px; padding:0 4px 6px; }
+  .stat-inline .box{ flex:1; background:var(--panel); border:1px solid var(--line); border-radius:8px; padding:6px 8px; }
+  .stat-inline .box .l{ font-size:9.5px; text-transform:uppercase; letter-spacing:.06em; color:var(--ink-soft); font-family:'IBM Plex Mono',monospace; }
+  .stat-inline .box .v{ font-family:'IBM Plex Mono',monospace; font-size:15px; font-weight:600; }
+  .stat-inline .box.bal .v{ color:var(--transit); }
+
+  /* ---------- Table ---------- */
+  .table-card{ background:var(--panel); border:1px solid var(--line); border-radius:9px; overflow:hidden; }
+  .scroll-x{ overflow-x:auto; -webkit-overflow-scrolling:touch; }
+  table{ width:100%; border-collapse:collapse; min-width:600px; }
+  thead th{ position:sticky; top:0; background:#F5F6F7; z-index:2; text-align:left;
+    font-family:'IBM Plex Mono',monospace; font-size:calc(var(--fs) - 4px); letter-spacing:.03em; text-transform:uppercase;
+    color:var(--ink-soft); padding:4px 5px; border-bottom:1px solid var(--line); white-space:nowrap; }
+  thead th.sortable{ cursor:pointer; user-select:none; }
+  thead th.sortable:active{ background:#EDEFF1; }
+  thead th .arrow{ font-size:8px; margin-left:2px; opacity:.75; }
+  tbody td{ padding:1px 4px; border-bottom:1px solid var(--line-soft); font-size:var(--fs); vertical-align:middle; line-height:1.1; }
+  tbody tr:hover{ background:#FAFBFB; }
+  tbody tr.new-row{ background:#FFF9E9; }
+  tbody tr.selected{ background:#EAF1FB; }
+  td input{ width:100%; border:1px solid transparent; background:transparent; border-radius:5px; padding:3px 4px;
+    font-size:var(--fs); font-family:'IBM Plex Mono',monospace; color:var(--ink); }
+  td input[readonly]{ color:var(--ink); background:transparent; }
+  td input:not([readonly]){ border-color:var(--line); background:#fff; }
+  td input:focus{ border-color:var(--ink); outline:none; background:#fff; }
+  td.qty input{ text-align:right; font-weight:600; }
+  td.sno{ font-family:'IBM Plex Mono',monospace; color:var(--ink-soft); text-align:center; width:24px; }
+  td.chk{ width:24px; text-align:center; }
+  td.c-supplier{ min-width:100px; }
+  td.c-po, td.c-invoice{ min-width:70px; }
+  td.c-date{ min-width:96px; }
+  td.c-truck{ min-width:92px; }
+  td.c-qty{ min-width:58px; }
+  .status-btn{ width:26px; height:26px; border-radius:6px; border:none; font-size:12.5px; cursor:pointer; display:flex; align-items:center; justify-content:center; }
+  .status-Loading{ background:var(--loading-bg); color:var(--loading); }
+  .status-InTransit{ background:var(--transit-bg); color:var(--transit); }
+  .status-Received{ background:var(--received-bg); color:var(--received); }
+  .status-Pending{ background:var(--pending-bg); color:var(--pending); }
+  .shot-text{ display:none; font-family:'IBM Plex Mono',monospace; font-size:calc(var(--fs) - 1px); }
+  .edit-btn, .del-btn, .restore-btn, .purge-btn{ border:none; background:none; color:#8B939A; font-size:12px; cursor:pointer; border-radius:6px; padding:4px 6px; white-space:nowrap; }
+  .edit-btn.active{ background:var(--ink); color:#fff; }
+  .del-btn:active{ color:var(--pending); background:var(--pending-bg); }
+  .restore-btn{ color:var(--received); font-weight:600; } .purge-btn{ color:var(--pending); font-weight:600; }
+  .empty-state{ padding:26px 16px; text-align:center; color:var(--ink-soft); font-size:12.5px; }
+
+  /* Screenshot / clean-capture mode */
+  .shot .no-shot{ display:none !important; }
+  .shot .shot-text{ display:inline !important; }
+  .shot .status-btn{ display:none !important; }
+  .shot tbody td{ padding:2px 5px; }
+  .shot thead th{ padding:5px 5px; }
+
+  /* Column visibility */
+  .hide-col-po .col-po{ display:none; }
+  .hide-col-invoice .col-invoice{ display:none; }
+  .hide-col-truck .col-truck{ display:none; }
+
+  /* ---------- Group (supplier) module ---------- */
+  .grp-block{ background:var(--panel); border:1px solid var(--line); border-radius:9px; margin-bottom:7px; overflow:hidden; }
+  .grp-head{ padding:6px 9px; background:#F5F6F7; border-bottom:1px solid var(--line); }
+  .grp-head .name{ font-weight:700; font-size:13px; }
+  .grp-head .sums{ font-family:'IBM Plex Mono',monospace; font-size:10px; color:var(--ink-soft); margin-top:1px; }
+
+  .po-block{ border-bottom:1px solid var(--line); }
+  .po-block:last-child{ border-bottom:none; }
+  .po-label-row{ padding:6px 9px 5px; }
+  .po-label-row .po-name{ font-weight:700; font-size:12.5px; font-family:'IBM Plex Mono',monospace; }
+  .po-label-row .po-stats{ font-family:'IBM Plex Mono',monospace; font-size:10.5px; color:var(--ink-soft); margin-top:2px; line-height:1.6; }
+  .po-label-row .po-stats b{ color:var(--ink); font-weight:600; }
+  .po-label-row .po-stats .pend b{ color:var(--transit); }
+  .badge{ display:inline-flex; align-items:center; gap:3px; background:var(--loading-bg); color:var(--loading); border-radius:12px; padding:2px 8px; font-size:10px; font-weight:600; margin-right:5px; }
+  .badge.load{ background:var(--loading-bg); color:var(--loading); }
+  .po-target-row{ display:flex; align-items:center; gap:6px; margin-top:5px; }
+  .po-target-row label{ font-size:10px; color:var(--ink-soft); text-transform:uppercase; letter-spacing:.05em; font-family:'IBM Plex Mono',monospace; flex:none; }
+  .po-target-row .target-input{ width:90px; border:1px solid var(--line); border-radius:6px; padding:4px 6px; font-family:'IBM Plex Mono',monospace; font-size:11.5px; text-align:right; }
+  .sub-table{ width:100%; border-collapse:collapse; min-width:0; }
+  .sub-table thead th{ position:static; background:#FAFBFB; font-size:9.5px; padding:3px 8px; border-top:1px solid var(--line-soft); }
+  .sub-table tbody td{ padding:2px 8px; font-family:'IBM Plex Mono',monospace; font-size:11px; }
+  .sub-table tbody td.q{ text-align:right; font-weight:600; }
+  .sub-empty{ padding:8px 9px 10px; font-size:11px; color:var(--ink-soft); font-style:italic; }
+
+  /* ---------- Floating controls (excluded from screenshots — outside capture targets) ---------- */
+  .float-cluster{ position:fixed; left:8px; bottom:58px; display:flex; flex-direction:column; gap:6px; z-index:65; }
+  .float-cluster button{ width:36px; height:36px; border-radius:50%; border:1px solid var(--line); background:rgba(255,255,255,0.97);
+    box-shadow:0 3px 10px rgba(0,0,0,0.18); font-size:14px; display:flex; align-items:center; justify-content:center; cursor:pointer; color:var(--ink); font-weight:700; }
+  .float-cluster .zoom-lvl{ font-size:8px; text-align:center; font-family:'IBM Plex Mono',monospace; color:var(--ink-soft); background:#fff; border-radius:8px; padding:1px 0; box-shadow:0 2px 6px rgba(0,0,0,0.12); }
+
+  .fab{ position:fixed; bottom:58px; right:12px; width:46px; height:46px; border-radius:50%; background:var(--ink); color:#fff;
+    border:none; font-size:22px; cursor:pointer; box-shadow:0 6px 16px rgba(0,0,0,0.28); z-index:60; display:flex; align-items:center; justify-content:center; line-height:1; }
+
+  /* ---------- Bottom tab bar ---------- */
+  .tabbar{ position:fixed; bottom:0; left:0; right:0; display:flex; background:var(--ink); z-index:70; border-top:1px solid rgba(255,255,255,0.08); }
+  .tabbar button{ flex:1; background:none; border:none; color:#8B959B; padding:7px 4px 6px; font-size:10.5px; cursor:pointer; display:flex; flex-direction:column; align-items:center; gap:2px; }
+  .tabbar button .ic{ font-size:15px; }
+  .tabbar button.active{ color:#fff; }
+
+  /* ---------- Modal ---------- */
+  .overlay{ position:fixed; inset:0; background:rgba(17,20,22,0.55); z-index:100; display:none; align-items:center; justify-content:center; padding:16px;}
+  .overlay.open{ display:flex; }
+  .modal{ background:#fff; border-radius:12px; padding:18px; max-width:360px; width:100%; max-height:88vh; overflow-y:auto; }
+  .modal h3{ margin:0 0 6px; font-size:16px; }
+  .modal p{ margin:0 0 14px; font-size:12.5px; color:var(--ink-soft); line-height:1.5; }
+  .modal .row-info{ background:var(--pending-bg); color:var(--pending); border-radius:7px; padding:7px 9px; font-family:'IBM Plex Mono',monospace; font-size:11.5px; margin-bottom:14px; max-height:120px; overflow-y:auto; white-space:pre-line; }
+  .modal-actions{ display:flex; justify-content:flex-end; gap:6px; flex-wrap:wrap; }
+  .modal .btn{ border:1px solid var(--line); background:#fff; padding:8px 12px; border-radius:8px; font-size:12.5px; font-weight:600; cursor:pointer; }
+  .modal .btn.danger{ background:var(--pending); color:#fff; border-color:var(--pending); }
+  .modal .btn.primary{ background:var(--ink); color:#fff; border-color:var(--ink); }
+  .add-form{ display:flex; flex-direction:column; gap:8px; margin-bottom:14px; }
+  .add-form input{ background:#F5F6F7; border:1px solid var(--line); border-radius:7px; padding:9px 10px; font-size:13.5px; color:var(--ink); width:100%; }
+  .add-form input:focus{ border-color:var(--ink); outline:none; background:#fff; }
+  .add-form .fl{ font-size:10.5px; color:var(--ink-soft); text-transform:uppercase; letter-spacing:.05em; font-family:'IBM Plex Mono',monospace; margin-bottom:-4px; }
+
+  #toast{ position:fixed; bottom:58px; left:50%; transform:translateX(-50%) translateY(10px); background:var(--ink); color:#fff;
+    padding:8px 14px; border-radius:8px; font-size:12px; opacity:0; pointer-events:none; transition:opacity .2s, transform .2s; z-index:200; max-width:90%; text-align:center; }
+  #toast.show{ opacity:1; transform:translateX(-50%) translateY(0); }
+</style>
+</head>
+<body>
+
+<header class="top">
+  <div class="top-row">
+    <div class="brand">
+      <h1>Calcined Lime</h1>
+      <span class="sub" id="lastUpdated">No entries yet</span>
+    </div>
+    <div class="header-btns">
+      <button class="icon-btn" id="selectModeBtn" title="Select rows">☑</button>
+      <button class="icon-btn" id="pendingToggleBtn" title="Set total pending">✎</button>
+      <button class="icon-btn" id="logoutBtn" title="Log out">⏻</button>
+    </div>
+  </div>
+
+  <div class="pending-row" id="pendingRow">
+    <label>Total pending T</label>
+    <input type="number" id="totalPendingInput" step="0.01" value="8513">
+  </div>
+
+  <div class="lcd-strip">
+    <div class="lcd-panel"><div class="lcd-label">Load</div><div class="lcd-value" id="lcdLoading">0.0</div></div>
+    <div class="lcd-panel"><div class="lcd-label">Trans</div><div class="lcd-value" id="lcdTransit">0.0</div></div>
+    <div class="lcd-panel"><div class="lcd-label">Recv</div><div class="lcd-value" id="lcdReceived">0.0</div></div>
+    <div class="lcd-panel"><div class="lcd-label">Total</div><div class="lcd-value" id="lcdTotal">0.0</div></div>
+    <div class="lcd-panel pending"><div class="lcd-label">Pending</div><div class="lcd-value" id="lcdPending">0.0</div></div>
+    <div class="lcd-panel balance"><div class="lcd-label">Bal</div><div class="lcd-value" id="lcdBalance">0.0</div></div>
+  </div>
+</header>
+
+<div class="toolbar">
+  <button class="tbtn" id="searchToggleBtn" title="Search">🔍</button>
+  <button class="tbtn" id="filterToggleBtn" title="Filter">⏳</button>
+  <button class="tbtn" id="settingsToggleBtn" title="Font size / columns">⚙️</button>
+  <button class="tbtn" id="screenshotBtn" title="Screenshot table">📷</button>
+  <div class="spacer"></div>
+  <div class="menu-wrap">
+    <button class="tbtn" id="exportMenuBtn" title="Export">⬇️</button>
+    <div class="menu" id="exportMenu">
+      <button id="exportJsonBtn">📄 Export JSON</button>
+      <button id="exportExcelBtn">📊 Export Excel (.xlsx)</button>
+    </div>
+  </div>
+  <div class="menu-wrap">
+    <button class="tbtn" id="importMenuBtn" title="Import">⬆️</button>
+    <div class="menu" id="importMenu">
+      <button id="importJsonBtn">📄 Import JSON</button>
+      <button id="importExcelBtn">📊 Import Excel (.xlsx)</button>
+    </div>
+  </div>
+  <button class="tbtn add" id="addTopBtn" title="Add entry">＋</button>
+</div>
+
+<div class="panel" id="searchPanel">
+  <input type="text" id="searchInput" placeholder="Search supplier, PO, invoice, truck..." style="width:100%; background:#F5F6F7; border:1px solid var(--line); border-radius:7px; padding:8px 10px;">
+</div>
+
+<div class="panel" id="filterPanel">
+  <div class="panel-row" style="margin-bottom:6px;">
+    <span class="date-mini">📅 From</span><input type="date" id="dateFrom">
+    <span class="date-mini">to</span><input type="date" id="dateTo">
+  </div>
+  <div class="chip-group" id="statusChips">
+    <span class="chip active" data-status="">All</span>
+    <span class="chip" data-status="Loading">🕓 Loading</span>
+    <span class="chip" data-status="In Transit">🚚 Transit</span>
+    <span class="chip" data-status="Received">✅ Received</span>
+    <span class="chip" data-status="Pending">⚠️ Pending</span>
+  </div>
+</div>
+
+<div class="panel" id="settingsPanel">
+  <div class="settings-grid">
+    <div class="settings-item">
+      <span class="lbl">🔤 Font size</span>
+      <div class="stepper"><button data-font="-1">－</button><span class="val" id="fontVal">100%</span><button data-font="1">＋</button></div>
+    </div>
+    <div class="settings-item" style="align-items:flex-start;">
+      <span class="lbl">👁 Columns</span>
+      <div class="col-toggles">
+        <label class="col-toggle"><input type="checkbox" id="colTogglePo" checked> PO No</label>
+        <label class="col-toggle"><input type="checkbox" id="colToggleInvoice" checked> Invoice No</label>
+        <label class="col-toggle"><input type="checkbox" id="colToggleTruck" checked> Truck / Vehicle</label>
+      </div>
+    </div>
+    <div class="settings-item">
+      <span class="lbl">☁ Cloud</span>
+      <div class="stepper">
+        <span class="val" id="syncStatus" style="min-width:auto; padding:0 4px;">checking…</span>
+        <button id="syncNowBtn" style="width:auto; padding:0 10px;">Sync now</button>
+      </div>
+    </div>
+    <div class="settings-item" style="align-items:flex-start;">
+      <span class="lbl" style="padding-top:6px;">🔑 Password</span>
+      <div class="add-form" style="width:100%;">
+        <input type="password" id="cpCurrent" placeholder="Current password" autocomplete="current-password">
+        <input type="password" id="cpNew" placeholder="New password (min 6 characters)" autocomplete="new-password" style="margin-top:6px;">
+        <button id="changePasswordBtn" style="margin-top:8px; width:100%; border:none; background:var(--ink); color:#fff; padding:9px 12px; border-radius:8px; font-size:12.5px; font-weight:600; cursor:pointer;">Change password</button>
+        <p id="cpMsg" style="font-size:12px; margin:6px 0 0; display:none;"></p>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="bulk-bar" id="bulkBar">
+  <span class="cnt" id="bulkCount">0 selected</span>
+  <button class="cancel" id="bulkCancelBtn">Cancel</button>
+  <button class="del" id="bulkDeleteBtn">🗑 Delete selected</button>
+</div>
+
+<div class="tab-viewport" id="tabViewport">
+  <div class="tab-track" id="tabTrack">
+
+    <div class="tab-pane" id="paneDate">
+      <div class="pane-inner">
+        <div class="pane-title">📅 Entries by date <span class="hint">tap a header to sort</span></div>
+        <div class="table-card" id="captureTableDate">
+          <div class="scroll-x">
+            <table>
+              <thead>
+                <tr>
+                  <th class="selHead no-shot" style="display:none;">✓</th>
+                  <th class="no-shot">S.</th>
+                  <th class="sortable" data-sort="supplier">Supplier<span class="arrow"></span></th>
+                  <th class="sortable col-po" data-sort="po">PO<span class="arrow"></span></th>
+                  <th class="col-invoice">Invoice</th>
+                  <th class="sortable" data-sort="date">Date<span class="arrow"></span></th>
+                  <th class="col-truck">Truck</th>
+                  <th class="sortable" data-sort="qty">Qty<span class="arrow"></span></th>
+                  <th class="sortable" data-sort="status">Status<span class="arrow"></span></th>
+                  <th class="no-shot">Edit</th>
+                  <th class="no-shot">Del</th>
+                </tr>
+              </thead>
+              <tbody id="dateBody"></tbody>
+            </table>
+          </div>
+          <div class="empty-state" id="dateEmpty" style="display:none;">No rows match the current filters.</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="tab-pane" id="paneGroup">
+      <div class="pane-inner">
+        <div class="pane-title">🏷 Supplier &amp; PO wise pending <span class="hint">tap a header to sort</span></div>
+        <div id="captureTableGroup">
+          <div class="stat-inline">
+            <div class="box"><div class="l">Total Pending</div><div class="v mono" id="grpPending">0.0 T</div></div>
+            <div class="box bal"><div class="l">Balance</div><div class="v mono" id="grpBalance">0.0 T</div></div>
+          </div>
+          <div id="groupList"></div>
+          <div class="empty-state" id="groupEmpty" style="display:none;">No entries yet — add rows in the Entries tab.</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="tab-pane" id="paneTrash">
+      <div class="pane-inner">
+        <div class="pane-title">🗑 Deleted rows <span class="hint">restore or purge</span></div>
+        <div class="table-card" id="captureTableTrash">
+          <div class="scroll-x">
+            <table>
+              <thead><tr><th>Supplier</th><th>PO</th><th>Invoice</th><th>Date</th><th>Truck</th><th>Qty</th><th>Status</th><th>Deleted</th><th class="no-shot"></th><th class="no-shot"></th></tr></thead>
+              <tbody id="trashBody"></tbody>
+            </table>
+          </div>
+          <div class="empty-state" id="trashEmpty" style="display:none;">Trash is empty.</div>
+        </div>
+        <div style="padding:8px 4px;"><button id="emptyTrashBtn" style="border:1px solid var(--pending); color:var(--pending); background:#fff; border-radius:8px; padding:8px 12px; font-size:12.5px; font-weight:600;">🗑 Empty trash</button></div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<div class="float-cluster">
+  <button id="zoomInBtn" title="Zoom in">＋</button>
+  <div class="zoom-lvl" id="zoomLvl">100%</div>
+  <button id="zoomOutBtn" title="Zoom out">－</button>
+  <button id="scrollTopBtn" title="Scroll to top">▲</button>
+  <button id="scrollBottomBtn" title="Scroll to bottom">▼</button>
+</div>
+
+<button class="fab" id="fabAdd" title="Add entry">＋</button>
+
+<div class="tabbar">
+  <button class="active" data-tab="0"><span class="ic">📅</span>Entries</button>
+  <button data-tab="1"><span class="ic">🏷</span>Suppliers</button>
+  <button data-tab="2"><span class="ic">🗑</span>Trash</button>
+</div>
+
+<div class="overlay" id="addOverlay">
+  <div class="modal">
+    <h3>Add entry</h3>
+    <div class="add-form">
+      <span class="fl">Supplier</span>
+      <input type="text" id="addSupplier" list="supplierList" placeholder="Start typing a supplier...">
+      <span class="fl">PO No <span style="text-transform:none; opacity:.7;">(auto-filled from supplier)</span></span>
+      <input type="text" id="addPo" placeholder="PO No">
+      <span class="fl">Invoice No</span>
+      <input type="text" id="addInvoice" placeholder="Optional">
+      <span class="fl">Date</span>
+      <input type="date" id="addDate">
+      <span class="fl">Truck / Vehicle No(s)</span>
+      <input type="text" id="addTruck" placeholder="Optional — comma separate if multiple">
+      <span class="fl">Qty (T)</span>
+      <input type="number" step="0.01" id="addQty" placeholder="0.00">
+      <span class="fl">Status</span>
+      <div class="chip-group" id="addStatusChips">
+        <span class="chip active" data-status="Loading">🕓 Loading</span>
+        <span class="chip" data-status="In Transit">🚚 Transit</span>
+        <span class="chip" data-status="Received">✅ Received</span>
+        <span class="chip" data-status="Pending">⚠️ Pending</span>
+      </div>
+    </div>
+    <div class="modal-actions">
+      <button class="btn" id="cancelAddBtn">Cancel</button>
+      <button class="btn primary" id="confirmAddBtn">Add row</button>
+    </div>
+  </div>
+</div>
+
+<div class="overlay" id="deleteOverlay">
+  <div class="modal">
+    <h3 id="deleteTitle">Delete this row?</h3>
+    <p>Deleted rows move to the Trash module — you can restore them any time before purging.</p>
+    <div class="row-info" id="deleteRowInfo"></div>
+    <div class="modal-actions">
+      <button class="btn" id="cancelDeleteBtn">Cancel</button>
+      <button class="btn danger" id="confirmDeleteBtn">Delete</button>
+    </div>
+  </div>
+</div>
+
+<div class="overlay" id="purgeOverlay">
+  <div class="modal">
+    <h3 id="purgeTitle">Delete permanently?</h3>
+    <p>This removes the row forever. It cannot be recovered.</p>
+    <div class="modal-actions">
+      <button class="btn" id="cancelPurgeBtn">Cancel</button>
+      <button class="btn danger" id="confirmPurgeBtn">Delete forever</button>
+    </div>
+  </div>
+</div>
+
+<div class="overlay" id="importOverlay">
+  <div class="modal">
+    <h3 id="importTitle">Import data</h3>
+    <p id="importDesc">This will merge new rows with your current list. Existing rows are kept.</p>
+    <div class="modal-actions">
+      <button class="btn" id="cancelImportBtn">Cancel</button>
+      <button class="btn" id="mergeImportBtn">Merge</button>
+      <button class="btn primary" id="replaceImportBtn">Replace all</button>
+    </div>
+  </div>
+</div>
+
+<input type="file" id="jsonFileInput" accept=".json" style="display:none">
+<input type="file" id="excelFileInput" accept=".xlsx,.xls" style="display:none">
+<datalist id="supplierList"></datalist>
+<div class="overlay open" id="loginOverlay" style="z-index:300; background:rgba(17,20,22,0.92);">
+  <div class="modal" style="max-width:300px;">
+    <h3>🔒 Log in</h3>
+    <p>Your Calcined Lime fleet data, synced online.</p>
+    <div class="add-form">
+      <input type="text" id="loginUsername" placeholder="Username" autocomplete="username">
+      <input type="password" id="loginPassword" placeholder="Password" autocomplete="current-password">
+    </div>
+    <p id="loginError" style="color:var(--pending); font-size:12px; display:none;"></p>
+    <div class="modal-actions" style="justify-content:stretch;">
+      <button class="btn primary" id="loginBtn" style="width:100%;">Log in</button>
+    </div>
+  </div>
+</div>
+
+<div id="toast"></div>
+
+<script>
+(function(){
+  "use strict";
+
+  const STORAGE_KEY = "lime_fleet_entries_v2";
+  const DELETED_KEY = "lime_fleet_deleted_v2";
+  const SETTINGS_KEY = "lime_fleet_settings_v2";
+  const TARGETS_KEY = "lime_fleet_targets_v2";
+  const UI_KEY = "lime_fleet_ui_v3";
+  const STATUS_CYCLE = ["Loading","In Transit","Received","Pending"];
+  const STATUS_ICON = { "Loading":"🕓", "In Transit":"🚚", "Received":"✅", "Pending":"⚠️" };
+
+  let entries = [];
+  let deleted = [];
+  let settings = { totalPending: 8513 };
+  let poTargets = {};
+  let ui = { font:1, hiddenCols:{ po:false, invoice:false, truck:false } };
+  let editingIds = new Set();
+  let selectMode = false;
+  let selectedIds = new Set();
+  let sortField = "date";
+  let sortDir = "desc";
+  let currentStatusFilter = "";
+  let deleteTargetIds = null;
+  let purgeTargetId = null;
+  let pendingImportRows = null;
+  let pendingImportTargets = null;
+  let activeTab = 0;
+  let addPoAuto = true;
+  let addStatus = "Loading";
+  let suppressSync = false;
+  let syncTimer = null;
+  let syncFailedOnce = false;
+
+  function loadState(){
+    try{ entries = JSON.parse(localStorage.getItem(STORAGE_KEY)) || []; }catch(e){ entries = []; }
+    try{ deleted = JSON.parse(localStorage.getItem(DELETED_KEY)) || []; }catch(e){ deleted = []; }
+    try{ const s = JSON.parse(localStorage.getItem(SETTINGS_KEY)); if(s) settings = Object.assign(settings,s); }catch(e){}
+    try{ const t = JSON.parse(localStorage.getItem(TARGETS_KEY)); if(t) poTargets = t; }catch(e){}
+    try{ const u = JSON.parse(localStorage.getItem(UI_KEY)); if(u) ui = Object.assign(ui,u, {hiddenCols:Object.assign({po:false,invoice:false,truck:false}, u.hiddenCols||{})}); }catch(e){}
+  }
+  function saveEntries(){ localStorage.setItem(STORAGE_KEY, JSON.stringify(entries)); touchUpdated(); if(!suppressSync) scheduleSync(); }
+  function saveDeleted(){ localStorage.setItem(DELETED_KEY, JSON.stringify(deleted)); if(!suppressSync) scheduleSync(); }
+  function saveSettings(){ localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings)); if(!suppressSync) scheduleSync(); }
+  function saveTargets(){ localStorage.setItem(TARGETS_KEY, JSON.stringify(poTargets)); if(!suppressSync) scheduleSync(); }
+
+  // ---------- Cloud sync (Cloudflare Worker + D1) ----------
+  function setSyncStatus(text){ const el = document.getElementById("syncStatus"); if(el) el.textContent = text; }
+  function scheduleSync(){
+    setSyncStatus("saving…");
+    clearTimeout(syncTimer);
+    syncTimer = setTimeout(pushSync, 900);
+  }
+  async function pushSync(){
+    try{
+      const res = await fetch("/api/sync", {
+        method:"POST", credentials:"include", headers:{"Content-Type":"application/json"},
+        body: JSON.stringify({ settings, poTargets, entries, deleted })
+      });
+      if(res.status === 401){ setSyncStatus("logged out"); showLoginOverlay(); return; }
+      if(!res.ok) throw new Error("sync failed");
+      setSyncStatus("synced ✓");
+      syncFailedOnce = false;
+    }catch(e){
+      setSyncStatus("offline — saved locally");
+      if(!syncFailedOnce){ toast("Couldn't reach the server — your changes are saved on this device and will sync once you're back online."); syncFailedOnce = true; }
+    }
+  }
+  function showLoginOverlay(){ document.getElementById("loginOverlay").classList.add("open"); }
+  function hideLoginOverlay(){ document.getElementById("loginOverlay").classList.remove("open"); }
+
+  async function checkSessionAndLoad(){
+    try{
+      const meRes = await fetch("/api/me", {credentials:"include"});
+      if(!meRes.ok){ showLoginOverlay(); return; }
+      hideLoginOverlay();
+      await afterLogin();
+    }catch(e){
+      setSyncStatus("cloud unreachable");
+      toast("Can't reach the server — showing your locally saved data.");
+    }
+  }
+
+  async function afterLogin(){
+    try{
+      const res = await fetch("/api/data", {credentials:"include"});
+      if(res.status === 401){ showLoginOverlay(); return; }
+      if(!res.ok) throw new Error("load failed");
+      const data = await res.json();
+      const serverHasData = (data.entries && data.entries.length) || (data.deleted && data.deleted.length);
+      if(serverHasData){
+        suppressSync = true;
+        entries = data.entries || [];
+        deleted = data.deleted || [];
+        settings = Object.assign({ totalPending: 8513 }, data.settings || {});
+        poTargets = data.poTargets || {};
+        document.getElementById("totalPendingInput").value = settings.totalPending;
+        saveEntries(); saveDeleted(); saveSettings(); saveTargets();
+        suppressSync = false;
+        setSyncStatus("synced ✓");
+        renderAll();
+        toast("Loaded " + entries.length + " rows from the cloud");
+      } else if(entries.length){
+        setSyncStatus("not synced yet");
+        toast("Cloud is empty — tap ⚙️ Settings → Sync now to upload your " + entries.length + " local rows");
+      } else {
+        setSyncStatus("synced ✓");
+      }
+    }catch(e){
+      setSyncStatus("offline");
+      toast("Logged in, but couldn't reach the server — working from local data.");
+    }
+  }
+
+  document.getElementById("loginBtn").addEventListener("click", async ()=>{
+    const username = document.getElementById("loginUsername").value.trim();
+    const password = document.getElementById("loginPassword").value;
+    const errEl = document.getElementById("loginError");
+    errEl.style.display = "none";
+    if(!username || !password){ errEl.textContent = "Enter both username and password"; errEl.style.display="block"; return; }
+    try{
+      const res = await fetch("/api/login", {
+        method:"POST", credentials:"include", headers:{"Content-Type":"application/json"},
+        body: JSON.stringify({username, password})
+      });
+      if(!res.ok){ const d = await res.json().catch(()=>({})); errEl.textContent = d.error || "Login failed"; errEl.style.display="block"; return; }
+      document.getElementById("loginPassword").value = "";
+      hideLoginOverlay();
+      await afterLogin();
+    }catch(e){ errEl.textContent = "Can't reach the server — check your connection"; errEl.style.display="block"; }
+  });
+  document.getElementById("loginPassword").addEventListener("keydown",(ev)=>{ if(ev.key==="Enter") document.getElementById("loginBtn").click(); });
+
+  document.getElementById("logoutBtn").addEventListener("click", async ()=>{
+    try{ await fetch("/api/logout", {method:"POST", credentials:"include"}); }catch(e){}
+    location.reload();
+  });
+
+  document.getElementById("changePasswordBtn").addEventListener("click", async ()=>{
+    const currentPassword = document.getElementById("cpCurrent").value;
+    const newPassword = document.getElementById("cpNew").value;
+    const msgEl = document.getElementById("cpMsg");
+    msgEl.style.display = "none";
+    if(!currentPassword || !newPassword){
+      msgEl.textContent = "Enter your current and new password";
+      msgEl.style.color = "var(--pending)"; msgEl.style.display = "block";
+      return;
+    }
+    if(newPassword.length < 6){
+      msgEl.textContent = "New password must be at least 6 characters";
+      msgEl.style.color = "var(--pending)"; msgEl.style.display = "block";
+      return;
+    }
+    try{
+      const res = await fetch("/api/change-password", {
+        method:"POST", credentials:"include", headers:{"Content-Type":"application/json"},
+        body: JSON.stringify({currentPassword, newPassword})
+      });
+      const d = await res.json().catch(()=>({}));
+      if(!res.ok){
+        msgEl.textContent = d.error || "Couldn't change password";
+        msgEl.style.color = "var(--pending)"; msgEl.style.display = "block";
+        return;
+      }
+      document.getElementById("cpCurrent").value = "";
+      document.getElementById("cpNew").value = "";
+      msgEl.textContent = "Password changed ✓";
+      msgEl.style.color = "var(--received)"; msgEl.style.display = "block";
+      toast("Password changed");
+    }catch(e){
+      msgEl.textContent = "Can't reach the server — check your connection";
+      msgEl.style.color = "var(--pending)"; msgEl.style.display = "block";
+    }
+  });
+
+  document.getElementById("syncNowBtn").addEventListener("click", async ()=>{
+    setSyncStatus("saving…");
+    try{
+      const res = await fetch("/api/sync", {
+        method:"POST", credentials:"include", headers:{"Content-Type":"application/json"},
+        body: JSON.stringify({ settings, poTargets, entries, deleted })
+      });
+      if(res.status===401){ showLoginOverlay(); return; }
+      if(!res.ok) throw new Error("sync failed");
+      setSyncStatus("synced ✓");
+      toast("Uploaded to the cloud");
+    }catch(e){ setSyncStatus("offline"); toast("Couldn't reach the server"); }
+  });
+  function saveUI(){ localStorage.setItem(UI_KEY, JSON.stringify(ui)); }
+  function touchUpdated(){ document.getElementById("lastUpdated").textContent = "Updated " + new Date().toLocaleString([], {dateStyle:"medium", timeStyle:"short"}); }
+  function uid(){ return "r" + Date.now().toString(36) + Math.random().toString(36).slice(2,7); }
+
+  function normStatus(s){
+    if(!s) return "Pending";
+    s = String(s).trim().toLowerCase();
+    if(s.includes("recei")) return "Received";
+    if(s.includes("transit")) return "In Transit";
+    if(s.includes("load")) return "Loading";
+    return "Pending";
+  }
+  function statusClass(s){ return "status-" + s.replace(/\s+/g,""); }
+  function fmtQty(n){ n = Number(n)||0; return n.toLocaleString(undefined,{minimumFractionDigits:1, maximumFractionDigits:3}); }
+  function toast(msg){
+    const t = document.getElementById("toast");
+    t.textContent = msg; t.classList.add("show");
+    clearTimeout(toast._tm);
+    toast._tm = setTimeout(()=>t.classList.remove("show"), 2200);
+  }
+  function escAttr(v){ return String(v==null?"":v).replace(/&/g,"&amp;").replace(/"/g,"&quot;").replace(/</g,"&lt;"); }
+  function targetKey(sup,po){ return (sup||"(no supplier)") + "||" + (po||"(no PO)"); }
+  function rebuildSupplierDatalist(){
+    const dl = document.getElementById("supplierList");
+    dl.innerHTML = [...new Set(entries.map(e=>e.supplier).filter(Boolean))].sort().map(s=>`<option value="${escAttr(s)}">`).join("");
+  }
+  function mostRecentPoFor(supplier, excludeId){
+    const val = (supplier||"").trim().toLowerCase();
+    if(!val) return "";
+    const match = entries
+      .filter(x=> x.id!==excludeId && (x.supplier||"").trim().toLowerCase()===val && x.po)
+      .sort((a,b)=> b.createdAt-a.createdAt)[0];
+    return match ? match.po : "";
+  }
+
+  // ---------- Filtering / sorting for date module ----------
+  function getFiltered(){
+    const q = document.getElementById("searchInput").value.trim().toLowerCase();
+    const from = document.getElementById("dateFrom").value;
+    const to = document.getElementById("dateTo").value;
+    let list = entries.filter(e=>{
+      if(q){ const hay = [e.supplier,e.po,e.invoice,e.truck].join(" ").toLowerCase(); if(!hay.includes(q)) return false; }
+      if(from && e.date && e.date < from) return false;
+      if(to && e.date && e.date > to) return false;
+      if(currentStatusFilter && normStatus(e.status) !== currentStatusFilter) return false;
+      return true;
+    });
+    list.sort((a,b)=>{
+      let cmp = 0;
+      switch(sortField){
+        case "supplier": cmp = (a.supplier||"").toLowerCase().localeCompare((b.supplier||"").toLowerCase()); break;
+        case "po": cmp = String(a.po||"").localeCompare(String(b.po||""),undefined,{numeric:true}); break;
+        case "qty": cmp = (Number(a.qty)||0) - (Number(b.qty)||0); break;
+        case "status": cmp = normStatus(a.status).localeCompare(normStatus(b.status)); break;
+        case "date": default: cmp = (a.date||"").localeCompare(b.date||""); break;
+      }
+      if(cmp===0) cmp = (a.createdAt||0)-(b.createdAt||0);
+      return sortDir==="asc" ? cmp : -cmp;
+    });
+    return list;
+  }
+
+  function updateSortHeaderUI(){
+    document.querySelectorAll("thead th.sortable").forEach(th=>{
+      const arrow = th.querySelector(".arrow");
+      if(th.dataset.sort === sortField){ arrow.textContent = sortDir==="asc" ? "▲" : "▼"; th.style.color = "var(--ink)"; }
+      else { arrow.textContent = ""; th.style.color = ""; }
+    });
+  }
+  document.querySelectorAll("thead th.sortable").forEach(th=>{
+    th.addEventListener("click", ()=>{
+      const f = th.dataset.sort;
+      if(sortField === f){ sortDir = sortDir==="asc" ? "desc" : "asc"; }
+      else { sortField = f; sortDir = f==="date" ? "desc" : "asc"; }
+      updateSortHeaderUI();
+      renderDate();
+    });
+  });
+
+  // ---------- Render: Date module ----------
+  function renderDate(){
+    const list = getFiltered();
+    const body = document.getElementById("dateBody");
+    body.innerHTML = "";
+    document.getElementById("dateEmpty").style.display = list.length? "none":"block";
+    document.querySelector(".selHead").style.display = selectMode ? "table-cell":"none";
+
+    list.forEach((e,idx)=>{
+      const st = normStatus(e.status);
+      const editing = editingIds.has(e.id);
+      const ro = editing ? "" : "readonly";
+      const tr = document.createElement("tr");
+      tr.className = (e.isNew? "new-row ":"") + (selectedIds.has(e.id)? "selected":"");
+      tr.dataset.id = e.id;
+      tr.innerHTML = `
+        <td class="chk no-shot" style="display:${selectMode?'table-cell':'none'};"><input type="checkbox" data-action="select" ${selectedIds.has(e.id)?"checked":""}></td>
+        <td class="sno mono no-shot">${idx+1}</td>
+        <td class="c-supplier"><input type="text" data-field="supplier" list="supplierList" value="${escAttr(e.supplier)}" placeholder="Supplier" ${ro}></td>
+        <td class="c-po col-po"><input type="text" data-field="po" value="${escAttr(e.po)}" placeholder="PO No" ${ro}></td>
+        <td class="c-invoice col-invoice"><input type="text" data-field="invoice" value="${escAttr(e.invoice)}" placeholder="—" ${ro}></td>
+        <td class="c-date"><input type="date" data-field="date" value="${escAttr(e.date)}" ${ro}></td>
+        <td class="c-truck col-truck"><input type="text" data-field="truck" value="${escAttr(e.truck)}" placeholder="—" ${ro}></td>
+        <td class="qty c-qty"><input type="number" step="0.01" data-field="qty" value="${e.qty!==""&&e.qty!=null?e.qty:""}" placeholder="0.00" ${ro}></td>
+        <td><button class="status-btn ${statusClass(st)}" data-action="cycle-status" title="${st} — tap to change">${STATUS_ICON[st]}</button><span class="shot-text">${st}</span></td>
+        <td class="no-shot"><button class="edit-btn${editing?" active":""}" data-action="toggle-edit" title="Edit row">${editing?"✓ Done":"✎ Edit"}</button></td>
+        <td class="no-shot"><button class="del-btn" data-action="delete" title="Delete row">✕</button></td>
+      `;
+      body.appendChild(tr);
+    });
+
+    rebuildSupplierDatalist();
+    updateStats();
+    applyColumnVisibility();
+  }
+
+  function applyColumnVisibility(){
+    ["captureTableDate"].forEach(id=>{
+      const wrap = document.getElementById(id);
+      if(!wrap) return;
+      wrap.classList.toggle("hide-col-po", !!ui.hiddenCols.po);
+      wrap.classList.toggle("hide-col-invoice", !!ui.hiddenCols.invoice);
+      wrap.classList.toggle("hide-col-truck", !!ui.hiddenCols.truck);
+    });
+  }
+
+  function updateStats(){
+    let loading=0, transit=0, received=0;
+    entries.forEach(e=>{
+      const q = Number(e.qty)||0; const st = normStatus(e.status);
+      if(st==="Loading") loading+=q; else if(st==="In Transit") transit+=q; else if(st==="Received") received+=q;
+    });
+    const total = loading+transit+received;
+    const balance = (Number(settings.totalPending)||0) - total;
+    document.getElementById("lcdLoading").textContent = fmtQty(loading);
+    document.getElementById("lcdTransit").textContent = fmtQty(transit);
+    document.getElementById("lcdReceived").textContent = fmtQty(received);
+    document.getElementById("lcdTotal").textContent = fmtQty(total);
+    document.getElementById("lcdPending").textContent = fmtQty(settings.totalPending);
+    document.getElementById("lcdBalance").textContent = fmtQty(balance);
+    document.getElementById("grpPending").textContent = fmtQty(settings.totalPending) + " T";
+    document.getElementById("grpBalance").textContent = fmtQty(balance) + " T";
+  }
+
+  // ---------- Render: Group (supplier) module ----------
+  let groupSort = {}; // key "sup||po" -> {field, dir}
+  function getGroupSort(key){ return groupSort[key] || {field:"date", dir:"desc"}; }
+  function fmtDateDMY(iso){
+    if(!iso) return "—";
+    const parts = String(iso).split("-");
+    if(parts.length!==3) return iso;
+    return `${parts[2]}.${parts[1]}.${parts[0]}`;
+  }
+
+  function renderGroup(){
+    const map = {}; // sup -> po -> {list:[]}
+    entries.forEach(e=>{
+      const sup = e.supplier || "(no supplier)";
+      const po = e.po || "(no PO)";
+      map[sup] = map[sup] || {};
+      map[sup][po] = map[sup][po] || { list: [] };
+      map[sup][po].list.push(e);
+    });
+    const suppliers = Object.keys(map).sort();
+    const container = document.getElementById("groupList");
+    container.innerHTML = "";
+    document.getElementById("groupEmpty").style.display = suppliers.length? "none":"block";
+
+    suppliers.forEach(sup=>{
+      const pos = Object.keys(map[sup]).sort();
+      let supMoved = 0;
+      const block = document.createElement("div");
+      block.className = "grp-block";
+
+      let poBlocksHtml = "";
+      pos.forEach(po=>{
+        const list = map[sup][po].list;
+        let delivered=0, loading=0, transit=0;
+        list.forEach(e=>{
+          const q = Number(e.qty)||0; const st = normStatus(e.status);
+          if(st==="Received") delivered+=q;
+          else if(st==="Loading") loading+=q;
+          else if(st==="In Transit") transit+=q;
+        });
+        const moved = delivered+loading+transit;
+        supMoved += moved;
+        const key = targetKey(sup,po);
+        const target = poTargets[key]!=null ? poTargets[key] : "";
+        const pending = (Number(target)||0) - moved;
+        const transitCount = list.filter(e=>normStatus(e.status)==="In Transit").length;
+        const loadingCount = list.filter(e=>normStatus(e.status)==="Loading").length;
+
+        const {field,dir} = getGroupSort(key);
+        const sorted = list.slice().sort((a,b)=>{
+          let cmp=0;
+          switch(field){
+            case "qty": cmp=(Number(a.qty)||0)-(Number(b.qty)||0); break;
+            case "invoice": cmp=String(a.invoice||"").localeCompare(String(b.invoice||"")); break;
+            case "truck": cmp=String(a.truck||"").localeCompare(String(b.truck||"")); break;
+            case "date": default: cmp=(a.date||"").localeCompare(b.date||""); break;
+          }
+          return dir==="asc" ? cmp : -cmp;
+        });
+        const arrow = (f)=> field===f ? (dir==="asc"?"▲":"▼") : "";
+
+        const rowsHtml = sorted.map(e=>`
+          <tr>
+            <td>${fmtDateDMY(e.date)}</td>
+            <td class="q">${fmtQty(e.qty)}</td>
+            <td>${escAttr(e.invoice)||"—"}</td>
+            <td>${escAttr(e.truck)||"—"}</td>
+          </tr>`).join("");
+
+        poBlocksHtml += `
+          <div class="po-block">
+            <div class="po-label-row">
+              <div class="po-name">${escAttr(sup)} — PO ${escAttr(po)}</div>
+              <div class="po-stats">
+                Delivered <b>${fmtQty(delivered)} T</b> &nbsp;·&nbsp; Pending <span class="pend"><b>${fmtQty(pending)} T</b></span> &nbsp;·&nbsp; Loading <b>${fmtQty(loading)} T</b><br>
+                <span class="badge">🚚 ${transitCount} in transit</span><span class="badge load">🕓 ${loadingCount} loading</span>
+              </div>
+              <div class="po-target-row">
+                <label>Order qty</label>
+                <input class="target-input" data-target-key="${escAttr(key)}" type="number" step="0.01" value="${target}" placeholder="0.00">
+              </div>
+            </div>
+            ${sorted.length ? `
+            <div class="scroll-x">
+              <table class="sub-table">
+                <thead><tr>
+                  <th class="sortable" data-gkey="${escAttr(key)}" data-gsort="date">Date<span class="arrow">${arrow("date")}</span></th>
+                  <th class="sortable" data-gkey="${escAttr(key)}" data-gsort="qty">Qty<span class="arrow">${arrow("qty")}</span></th>
+                  <th class="sortable" data-gkey="${escAttr(key)}" data-gsort="invoice">Invoice<span class="arrow">${arrow("invoice")}</span></th>
+                  <th class="sortable" data-gkey="${escAttr(key)}" data-gsort="truck">Truck<span class="arrow">${arrow("truck")}</span></th>
+                </tr></thead>
+                <tbody>${rowsHtml}</tbody>
+              </table>
+            </div>` : `<div class="sub-empty">No deliveries recorded for this PO yet.</div>`}
+          </div>`;
+      });
+
+      block.innerHTML = `
+        <div class="grp-head">
+          <span class="name">${escAttr(sup)}</span>
+          <div class="sums">Total moved across all POs: ${fmtQty(supMoved)} T</div>
+        </div>
+        ${poBlocksHtml}
+      `;
+      container.appendChild(block);
+    });
+  }
+  document.getElementById("groupList").addEventListener("click",(ev)=>{
+    const th = ev.target.closest("th.sortable");
+    if(!th) return;
+    const key = th.dataset.gkey, field = th.dataset.gsort;
+    const cur = getGroupSort(key);
+    const dir = cur.field===field ? (cur.dir==="asc"?"desc":"asc") : (field==="date"?"desc":"asc");
+    groupSort[key] = {field,dir};
+    renderGroup();
+  });
+  document.getElementById("groupList").addEventListener("input", (ev)=>{
+    const key = ev.target.dataset.targetKey;
+    if(!key) return;
+    poTargets[key] = ev.target.value;
+    saveTargets();
+    renderGroup();
+  });
+
+  // ---------- Render: Trash module ----------
+  function renderTrash(){
+    const body = document.getElementById("trashBody");
+    body.innerHTML = "";
+    document.getElementById("trashEmpty").style.display = deleted.length? "none":"block";
+    deleted.slice().sort((a,b)=>b.deletedAt-a.deletedAt).forEach(e=>{
+      const st = normStatus(e.status);
+      const tr = document.createElement("tr");
+      tr.dataset.id = e.id;
+      tr.innerHTML = `
+        <td>${escAttr(e.supplier)||"—"}</td>
+        <td class="mono">${escAttr(e.po)||"—"}</td>
+        <td class="mono">${escAttr(e.invoice)||"—"}</td>
+        <td class="mono">${escAttr(e.date)||"—"}</td>
+        <td class="mono">${escAttr(e.truck)||"—"}</td>
+        <td class="mono">${fmtQty(e.qty)}</td>
+        <td><span class="status-btn ${statusClass(st)}" style="display:inline-flex;">${STATUS_ICON[st]}</span><span class="shot-text">${st}</span></td>
+        <td class="mono" style="font-size:10.5px; color:var(--ink-soft);">${new Date(e.deletedAt).toLocaleDateString()}</td>
+        <td class="no-shot"><button class="restore-btn" data-action="restore" title="Restore">↩ Restore</button></td>
+        <td class="no-shot"><button class="purge-btn" data-action="purge" title="Delete forever">🗑 Purge</button></td>
+      `;
+      body.appendChild(tr);
+    });
+  }
+  document.getElementById("trashBody").addEventListener("click",(ev)=>{
+    const restoreBtn = ev.target.closest('[data-action="restore"]');
+    if(restoreBtn){
+      const tr = ev.target.closest("tr");
+      const idx = deleted.findIndex(x=>x.id===tr.dataset.id);
+      if(idx>-1){
+        const [item] = deleted.splice(idx,1);
+        delete item.deletedAt;
+        entries.unshift(item);
+        saveEntries(); saveDeleted();
+        renderAll();
+        toast("Row restored");
+      }
+      return;
+    }
+    const purgeBtn = ev.target.closest('[data-action="purge"]');
+    if(purgeBtn){
+      purgeTargetId = ev.target.closest("tr").dataset.id;
+      document.getElementById("purgeTitle").textContent = "Delete permanently?";
+      document.getElementById("purgeOverlay").classList.add("open");
+    }
+  });
+  document.getElementById("cancelPurgeBtn").addEventListener("click", ()=>{
+    purgeTargetId = null; document.getElementById("purgeOverlay").classList.remove("open");
+  });
+  document.getElementById("confirmPurgeBtn").addEventListener("click", ()=>{
+    if(purgeTargetId === "__ALL__"){ deleted = []; saveDeleted(); renderTrash(); toast("Trash emptied"); }
+    else if(purgeTargetId){ deleted = deleted.filter(x=>x.id!==purgeTargetId); saveDeleted(); renderTrash(); toast("Row permanently deleted"); }
+    purgeTargetId = null;
+    document.getElementById("purgeOverlay").classList.remove("open");
+  });
+  document.getElementById("emptyTrashBtn").addEventListener("click", ()=>{
+    if(!deleted.length){ toast("Trash is already empty"); return; }
+    purgeTargetId = "__ALL__";
+    document.getElementById("purgeTitle").textContent = "Empty trash (" + deleted.length + " rows)?";
+    document.getElementById("purgeOverlay").classList.add("open");
+  });
+
+  // ---------- Add entry modal ----------
+  function openAddModal(){
+    document.getElementById("addSupplier").value = "";
+    document.getElementById("addPo").value = "";
+    document.getElementById("addInvoice").value = "";
+    document.getElementById("addDate").value = new Date().toISOString().slice(0,10);
+    document.getElementById("addTruck").value = "";
+    document.getElementById("addQty").value = "";
+    addStatus = "Loading"; addPoAuto = true;
+    document.querySelectorAll("#addStatusChips .chip").forEach(c=>c.classList.toggle("active", c.dataset.status===addStatus));
+    document.getElementById("addOverlay").classList.add("open");
+    setTimeout(()=>document.getElementById("addSupplier").focus(), 50);
+  }
+  document.getElementById("addTopBtn").addEventListener("click", openAddModal);
+  document.getElementById("fabAdd").addEventListener("click", openAddModal);
+  document.getElementById("cancelAddBtn").addEventListener("click", ()=> document.getElementById("addOverlay").classList.remove("open"));
+
+  document.getElementById("addSupplier").addEventListener("input", (ev)=>{
+    if(!addPoAuto) return;
+    const po = mostRecentPoFor(ev.target.value, null);
+    if(po) document.getElementById("addPo").value = po;
+  });
+  document.getElementById("addPo").addEventListener("input", ()=>{ addPoAuto = false; });
+  document.getElementById("addStatusChips").addEventListener("click",(ev)=>{
+    const chip = ev.target.closest(".chip"); if(!chip) return;
+    addStatus = chip.dataset.status;
+    document.querySelectorAll("#addStatusChips .chip").forEach(c=>c.classList.toggle("active", c===chip));
+  });
+  document.getElementById("confirmAddBtn").addEventListener("click", ()=>{
+    const entry = {
+      id: uid(),
+      supplier: document.getElementById("addSupplier").value.trim(),
+      po: document.getElementById("addPo").value.trim(),
+      invoice: document.getElementById("addInvoice").value.trim(),
+      date: document.getElementById("addDate").value || new Date().toISOString().slice(0,10),
+      truck: document.getElementById("addTruck").value.trim(),
+      qty: document.getElementById("addQty").value,
+      status: addStatus,
+      createdAt: Date.now(),
+      isNew: true
+    };
+    entries.unshift(entry);
+    saveEntries();
+    sortField = "date"; sortDir = "desc"; updateSortHeaderUI();
+    document.getElementById("addOverlay").classList.remove("open");
+    goToTab(0);
+    renderAll();
+    toast("Row added");
+    setTimeout(()=>{ const en = entries.find(x=>x.id===entry.id); if(en){ en.isNew=false; renderDate(); } }, 4000);
+  });
+
+  // ---------- Row edit / delete / select (date module) ----------
+  function onDateInput(ev){
+    const field = ev.target.dataset.field;
+    if(!field) return;
+    const tr = ev.target.closest("tr");
+    const entry = entries.find(x=>x.id===tr.dataset.id);
+    if(!entry) return;
+    entry[field] = ev.target.value;
+    saveEntries();
+    updateStats();
+  }
+  function onDateChange(ev){
+    if(ev.target.dataset.field !== "supplier") return;
+    const tr = ev.target.closest("tr");
+    const entry = entries.find(x=>x.id===tr.dataset.id);
+    if(!entry) return;
+    if(!entry.po){
+      const po = mostRecentPoFor(entry.supplier, entry.id);
+      if(po){
+        entry.po = po;
+        const poInput = tr.querySelector('input[data-field="po"]');
+        if(poInput) poInput.value = po;
+        saveEntries();
+      }
+    }
+    rebuildSupplierDatalist();
+    renderGroup();
+  }
+  function onDateClick(ev){
+    const selChk = ev.target.closest('[data-action="select"]');
+    if(selChk){
+      const tr = ev.target.closest("tr");
+      const id = tr.dataset.id;
+      if(selChk.checked) selectedIds.add(id); else selectedIds.delete(id);
+      updateBulkBar();
+      tr.classList.toggle("selected", selChk.checked);
+      return;
+    }
+    const editBtn = ev.target.closest('[data-action="toggle-edit"]');
+    if(editBtn){
+      const tr = ev.target.closest("tr");
+      const id = tr.dataset.id;
+      if(editingIds.has(id)) editingIds.delete(id); else editingIds.add(id);
+      renderDate();
+      return;
+    }
+    const cycleBtn = ev.target.closest('[data-action="cycle-status"]');
+    if(cycleBtn){
+      const tr = ev.target.closest("tr");
+      const entry = entries.find(x=>x.id===tr.dataset.id);
+      if(!entry) return;
+      const cur = normStatus(entry.status);
+      const next = STATUS_CYCLE[(STATUS_CYCLE.indexOf(cur)+1) % STATUS_CYCLE.length];
+      entry.status = next;
+      saveEntries();
+      renderDate(); renderGroup();
+      return;
+    }
+    const delBtn = ev.target.closest('[data-action="delete"]');
+    if(delBtn){
+      const tr = ev.target.closest("tr");
+      const entry = entries.find(x=>x.id===tr.dataset.id);
+      if(!entry) return;
+      deleteTargetIds = [entry.id];
+      document.getElementById("deleteTitle").textContent = "Delete this row?";
+      document.getElementById("deleteRowInfo").textContent =
+        `${entry.supplier||"(no supplier)"} · PO ${entry.po||"—"} · ${entry.date||"—"} · ${fmtQty(entry.qty)} T · ${normStatus(entry.status)}`;
+      document.getElementById("deleteOverlay").classList.add("open");
+    }
+  }
+
+  function updateBulkBar(){
+    const bar = document.getElementById("bulkBar");
+    const n = selectedIds.size;
+    document.getElementById("bulkCount").textContent = n + " selected";
+    bar.classList.toggle("open", selectMode && n>0);
+  }
+  document.getElementById("selectModeBtn").addEventListener("click", ()=>{
+    selectMode = !selectMode;
+    document.getElementById("selectModeBtn").classList.toggle("active", selectMode);
+    if(!selectMode){ selectedIds.clear(); }
+    updateBulkBar();
+    renderDate();
+  });
+  document.getElementById("bulkCancelBtn").addEventListener("click", ()=>{
+    selectedIds.clear(); updateBulkBar(); renderDate();
+  });
+  document.getElementById("bulkDeleteBtn").addEventListener("click", ()=>{
+    if(!selectedIds.size) return;
+    deleteTargetIds = [...selectedIds];
+    document.getElementById("deleteTitle").textContent = "Delete " + deleteTargetIds.length + " rows?";
+    document.getElementById("deleteRowInfo").textContent = deleteTargetIds.map(id=>{
+      const en = entries.find(x=>x.id===id);
+      return en ? `${en.supplier||"(no supplier)"} · PO ${en.po||"—"} · ${fmtQty(en.qty)} T` : id;
+    }).join("\n");
+    document.getElementById("deleteOverlay").classList.add("open");
+  });
+  document.getElementById("cancelDeleteBtn").addEventListener("click", ()=>{
+    deleteTargetIds = null; document.getElementById("deleteOverlay").classList.remove("open");
+  });
+  document.getElementById("confirmDeleteBtn").addEventListener("click", ()=>{
+    if(deleteTargetIds){
+      const now = Date.now();
+      deleteTargetIds.forEach(id=>{
+        const idx = entries.findIndex(x=>x.id===id);
+        if(idx>-1){
+          const [removed] = entries.splice(idx,1);
+          removed.deletedAt = now;
+          deleted.unshift(removed);
+        }
+        selectedIds.delete(id);
+      });
+      saveEntries(); saveDeleted();
+      updateBulkBar();
+      renderAll();
+      toast(deleteTargetIds.length>1 ? deleteTargetIds.length+" rows moved to Trash" : "Row moved to Trash");
+    }
+    deleteTargetIds = null;
+    document.getElementById("deleteOverlay").classList.remove("open");
+  });
+
+  // ---------- Tabs (no swipe — tap only) ----------
+  const track = document.getElementById("tabTrack");
+  function goToTab(i){
+    activeTab = Math.max(0, Math.min(2, i));
+    track.style.transform = `translateX(-${activeTab * 33.3333}%)`;
+    document.querySelectorAll(".tabbar button").forEach(b=> b.classList.toggle("active", Number(b.dataset.tab)===activeTab));
+  }
+  document.querySelectorAll(".tabbar button").forEach(b=>{
+    b.addEventListener("click", ()=> goToTab(Number(b.dataset.tab)));
+  });
+
+  // ---------- Panels ----------
+  function setupToggle(btnId, panelId){
+    document.getElementById(btnId).addEventListener("click", ()=>{
+      const panel = document.getElementById(panelId);
+      const willOpen = !panel.classList.contains("open");
+      document.querySelectorAll(".panel").forEach(p=>p.classList.remove("open"));
+      document.querySelectorAll(".toolbar .tbtn").forEach(b=>b.classList.remove("active"));
+      if(willOpen){ panel.classList.add("open"); document.getElementById(btnId).classList.add("active"); }
+    });
+  }
+  setupToggle("searchToggleBtn","searchPanel");
+  setupToggle("filterToggleBtn","filterPanel");
+  setupToggle("settingsToggleBtn","settingsPanel");
+
+  document.getElementById("pendingToggleBtn").addEventListener("click", ()=>{
+    document.getElementById("pendingRow").classList.toggle("open");
+  });
+  document.getElementById("searchInput").addEventListener("input", renderDate);
+  document.getElementById("dateFrom").addEventListener("input", renderDate);
+  document.getElementById("dateTo").addEventListener("input", renderDate);
+  document.getElementById("statusChips").addEventListener("click",(ev)=>{
+    const chip = ev.target.closest(".chip"); if(!chip) return;
+    currentStatusFilter = chip.dataset.status;
+    document.querySelectorAll("#statusChips .chip").forEach(c=>c.classList.toggle("active", c===chip));
+    renderDate();
+  });
+  document.getElementById("totalPendingInput").addEventListener("input", (ev)=>{
+    settings.totalPending = Number(ev.target.value)||0;
+    saveSettings(); updateStats();
+  });
+
+  // ---------- Column visibility settings ----------
+  document.getElementById("colTogglePo").addEventListener("change",(ev)=>{ ui.hiddenCols.po = !ev.target.checked; saveUI(); applyColumnVisibility(); });
+  document.getElementById("colToggleInvoice").addEventListener("change",(ev)=>{ ui.hiddenCols.invoice = !ev.target.checked; saveUI(); applyColumnVisibility(); });
+  document.getElementById("colToggleTruck").addEventListener("change",(ev)=>{ ui.hiddenCols.truck = !ev.target.checked; saveUI(); applyColumnVisibility(); });
+
+  // ---------- Font size ----------
+  function applyFont(){
+    document.documentElement.style.setProperty("--fs", (13*ui.font) + "px");
+    document.getElementById("fontVal").textContent = Math.round(ui.font*100) + "%";
+  }
+  document.querySelectorAll("[data-font]").forEach(b=>{
+    b.addEventListener("click", ()=>{
+      const d = Number(b.dataset.font) * 0.1;
+      ui.font = Math.max(0.7, Math.min(1.8, +(ui.font + d).toFixed(2)));
+      saveUI(); applyFont();
+    });
+  });
+
+  // ---------- Floating zoom + scroll (outside capture targets, so never in screenshots) ----------
+  let zoomLevel = 1;
+  function applyZoom(){
+    document.body.style.zoom = zoomLevel;
+    document.getElementById("zoomLvl").textContent = Math.round(zoomLevel*100) + "%";
+  }
+  document.getElementById("zoomInBtn").addEventListener("click", ()=>{ zoomLevel = Math.min(2, +(zoomLevel+0.1).toFixed(2)); applyZoom(); });
+  document.getElementById("zoomOutBtn").addEventListener("click", ()=>{ zoomLevel = Math.max(0.6, +(zoomLevel-0.1).toFixed(2)); applyZoom(); });
+  document.getElementById("scrollTopBtn").addEventListener("click", ()=> window.scrollTo({top:0, behavior:"smooth"}));
+  document.getElementById("scrollBottomBtn").addEventListener("click", ()=> window.scrollTo({top:document.body.scrollHeight, behavior:"smooth"}));
+
+  // ---------- Menus (fixed-position so toolbar overflow can't clip them) ----------
+  function positionMenu(btn, menu){
+    const r = btn.getBoundingClientRect();
+    const menuWidth = menu.offsetWidth || 190;
+    let left = r.right - menuWidth;
+    if(left < 6) left = 6;
+    if(left + menuWidth > window.innerWidth - 6) left = window.innerWidth - menuWidth - 6;
+    menu.style.top = (r.bottom + 6) + "px";
+    menu.style.left = left + "px";
+  }
+  function toggleMenu(btnId, menuId){
+    const btn = document.getElementById(btnId);
+    const m = document.getElementById(menuId);
+    btn.addEventListener("click",(ev)=>{
+      ev.stopPropagation();
+      const willOpen = !m.classList.contains("open");
+      document.querySelectorAll(".menu").forEach(x=>x.classList.remove("open"));
+      if(willOpen){ m.classList.add("open"); positionMenu(btn, m); }
+    });
+  }
+  toggleMenu("exportMenuBtn","exportMenu");
+  toggleMenu("importMenuBtn","importMenu");
+  document.addEventListener("click", ()=>{ document.querySelectorAll(".menu").forEach(x=>x.classList.remove("open")); });
+  window.addEventListener("scroll", ()=>{ document.querySelectorAll(".menu").forEach(x=>x.classList.remove("open")); }, true);
+  window.addEventListener("resize", ()=>{ document.querySelectorAll(".menu").forEach(x=>x.classList.remove("open")); });
+
+  // ---------- Export ----------
+  document.getElementById("exportJsonBtn").addEventListener("click", ()=>{
+    const payload = { exportedAt: new Date().toISOString(), settings, poTargets, entries, deleted };
+    downloadBlob(JSON.stringify(payload,null,2), "calcined-lime-fleet.json", "application/json");
+    toast("JSON exported");
+  });
+  document.getElementById("exportExcelBtn").addEventListener("click", ()=>{
+    const rows = entries.slice().sort((a,b)=> (b.date||"").localeCompare(a.date||"")).map((e,i)=>({
+      "S.": i+1, "Supplier": e.supplier, "PO No": e.po, "Invoice No": e.invoice,
+      "Date": e.date, "Truck No": e.truck, "Qty": Number(e.qty)||0, "Status": normStatus(e.status)
+    }));
+    const ws = XLSX.utils.json_to_sheet(rows);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "Calcined Lime");
+    let loading=0, transit=0, received=0;
+    entries.forEach(e=>{ const q=Number(e.qty)||0; const st=normStatus(e.status);
+      if(st==="Loading") loading+=q; else if(st==="In Transit") transit+=q; else if(st==="Received") received+=q; });
+    const total = loading+transit+received;
+    const balance = (Number(settings.totalPending)||0) - total;
+    const summary = XLSX.utils.aoa_to_sheet([
+      ["As on", new Date().toISOString().slice(0,10)],
+      ["Total Pending","Loading","In Transit","Received","Total","Balance"],
+      [settings.totalPending, loading, transit, received, total, balance]
+    ]);
+    XLSX.utils.book_append_sheet(wb, summary, "Summary");
+    const groupRows = [];
+    Object.keys(poTargets).forEach(k=>{
+      const [sup,po] = k.split("||");
+      groupRows.push({Supplier:sup, PO:po, "Order Qty": poTargets[k]});
+    });
+    if(groupRows.length){ XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(groupRows), "PO Targets"); }
+    XLSX.writeFile(wb, "calcined-lime-fleet.xlsx");
+    toast("Excel file exported");
+  });
+
+  // Screenshot: capture only the active tab's table, clean mode (no checkboxes/edit/delete/icons)
+  document.getElementById("screenshotBtn").addEventListener("click", async ()=>{
+    const targets = ["captureTableDate","captureTableGroup","captureTableTrash"];
+    const el = document.getElementById(targets[activeTab]);
+    if(!el){ toast("Nothing to capture"); return; }
+    toast("Capturing table...");
+    el.classList.add("shot");
+    try{
+      const canvas = await html2canvas(el, {backgroundColor:"#FFFFFF", scale:2});
+      canvas.toBlob(async (blob)=>{
+        const file = new File([blob], "calcined-lime-table.png", {type:"image/png"});
+        if(navigator.share && navigator.canShare && navigator.canShare({files:[file]})){
+          try{ await navigator.share({files:[file], title:"Calcined Lime Fleet Tracker"}); toast("Shared"); return; }
+          catch(e){}
+        }
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a"); a.href = url; a.download = "calcined-lime-table.png"; a.click();
+        URL.revokeObjectURL(url);
+        toast("Screenshot downloaded");
+      }, "image/png");
+    }catch(err){ toast("Screenshot failed: " + err.message); }
+    finally{ el.classList.remove("shot"); }
+  });
+
+  // ---------- Import ----------
+  document.getElementById("importJsonBtn").addEventListener("click", ()=>document.getElementById("jsonFileInput").click());
+  document.getElementById("jsonFileInput").addEventListener("change", (ev)=>{
+    const file = ev.target.files[0]; if(!file) return;
+    const reader = new FileReader();
+    reader.onload = ()=>{
+      try{
+        const data = JSON.parse(reader.result);
+        const rows = Array.isArray(data) ? data : (data.entries||[]);
+        pendingImportRows = rows.map(r=>({
+          id: uid(), supplier:r.supplier||r.Supplier||"", po:r.po||r["PO No"]||"",
+          invoice:r.invoice||r["Invoice No"]||"", date:r.date||r.Date||"",
+          truck:r.truck||r["Truck No"]||"", qty:r.qty!=null?r.qty:(r.Qty!=null?r.Qty:""),
+          status:r.status||r.Status||"Pending", createdAt:Date.now()
+        }));
+        pendingImportTargets = (data.poTargets && typeof data.poTargets==="object") ? data.poTargets : null;
+        if(data.settings && data.settings.totalPending!=null) pendingImportRows._settingsTotalPending = data.settings.totalPending;
+        document.getElementById("importTitle").textContent = "Import JSON";
+        document.getElementById("importDesc").textContent = `Found ${pendingImportRows.length} rows${pendingImportTargets?" plus PO targets":""}. Merge with current data or replace everything?`;
+        document.getElementById("importOverlay").classList.add("open");
+      }catch(e){ toast("Could not read JSON file"); }
+      ev.target.value = "";
+    };
+    reader.readAsText(file);
+  });
+  document.getElementById("importExcelBtn").addEventListener("click", ()=>document.getElementById("excelFileInput").click());
+  document.getElementById("excelFileInput").addEventListener("change",(ev)=>{
+    const file = ev.target.files[0]; if(!file) return;
+    const reader = new FileReader();
+    reader.onload = (e)=>{
+      try{
+        const wb = XLSX.read(e.target.result, {type:"array"});
+        const ws = wb.Sheets[wb.SheetNames[0]];
+        const rows = XLSX.utils.sheet_to_json(ws, {defval:""});
+        pendingImportRows = rows.filter(r=>Object.values(r).join("").trim().length>0).map(r=>({
+          id: uid(),
+          supplier: r["Supplier"]||r["supplier"]||"",
+          po: String(r["PO No"]||r["po"]||""),
+          invoice: String(r["Invoice No"]||r["invoice"]||""),
+          date: normalizeExcelDate(r["Date"]||r["date"]),
+          truck: r["Truck No"]||r["truck"]||"",
+          qty: r["Qty"]!=null? r["Qty"] : (r["qty"]!=null? r["qty"]:""),
+          status: r["Status"]||r["status"]||"Pending",
+          createdAt: Date.now()
+        }));
+        pendingImportTargets = null;
+        document.getElementById("importTitle").textContent = "Import Excel";
+        document.getElementById("importDesc").textContent = `Found ${pendingImportRows.length} rows. Merge with current data or replace everything?`;
+        document.getElementById("importOverlay").classList.add("open");
+      }catch(err){ toast("Could not read Excel file"); }
+      ev.target.value = "";
+    };
+    reader.readAsArrayBuffer(file);
+  });
+  function normalizeExcelDate(v){
+    if(!v) return "";
+    if(typeof v === "number"){ const d = XLSX.SSF.parse_date_code(v); if(d) return `${d.y}-${String(d.m).padStart(2,"0")}-${String(d.d).padStart(2,"0")}`; }
+    const s = String(v).trim();
+    const m = s.match(/^(\d{1,2})[.\/-](\d{1,2})[.\/-](\d{4})$/);
+    if(m) return `${m[3]}-${m[2].padStart(2,"0")}-${m[1].padStart(2,"0")}`;
+    if(/^\d{4}-\d{2}-\d{2}/.test(s)) return s.slice(0,10);
+    return "";
+  }
+  document.getElementById("cancelImportBtn").addEventListener("click", ()=>{
+    pendingImportRows = null; pendingImportTargets = null;
+    document.getElementById("importOverlay").classList.remove("open");
+  });
+  document.getElementById("mergeImportBtn").addEventListener("click", ()=>{
+    if(pendingImportRows){ entries = pendingImportRows.concat(entries); applyImportedSettings(); saveEntries(); renderAll(); toast("Rows merged"); }
+    finishImport();
+  });
+  document.getElementById("replaceImportBtn").addEventListener("click", ()=>{
+    if(pendingImportRows){ entries = pendingImportRows.slice(); applyImportedSettings(); saveEntries(); renderAll(); toast("Data replaced"); }
+    finishImport();
+  });
+  function applyImportedSettings(){
+    if(pendingImportRows._settingsTotalPending!=null){
+      settings.totalPending = pendingImportRows._settingsTotalPending;
+      document.getElementById("totalPendingInput").value = settings.totalPending;
+      saveSettings();
+    }
+    if(pendingImportTargets){ poTargets = Object.assign({}, poTargets, pendingImportTargets); saveTargets(); }
+  }
+  function finishImport(){
+    pendingImportRows = null; pendingImportTargets = null;
+    document.getElementById("importOverlay").classList.remove("open");
+  }
+  function downloadBlob(content, filename, type){
+    const blob = new Blob([content], {type});
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a"); a.href = url; a.download = filename; a.click();
+    URL.revokeObjectURL(url);
+  }
+
+  document.getElementById("dateBody").addEventListener("input", onDateInput);
+  document.getElementById("dateBody").addEventListener("change", onDateChange);
+  document.getElementById("dateBody").addEventListener("click", onDateClick);
+
+  function renderAll(){ renderDate(); renderGroup(); renderTrash(); }
+
+  loadState();
+  document.getElementById("totalPendingInput").value = settings.totalPending;
+  document.getElementById("colTogglePo").checked = !ui.hiddenCols.po;
+  document.getElementById("colToggleInvoice").checked = !ui.hiddenCols.invoice;
+  document.getElementById("colToggleTruck").checked = !ui.hiddenCols.truck;
+  if(entries.length) touchUpdated();
+  applyFont(); applyZoom();
+  updateSortHeaderUI();
+  renderAll();
+  checkSessionAndLoad();
+})();
+</script>
+</body>
+</html>
